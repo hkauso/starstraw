@@ -23,7 +23,7 @@ crate-type = ["bin"]
 postgres = ["dorsal/postgres"]
 mysql = ["dorsal/mysql"]
 sqlite = ["dorsal/sqlite"]
-default = ["dorsal/sqlite"] # for development
+# default = ["dorsal/sqlite"] # for development
 
 [dependencies]
 axum = { version = "0.7.5", features = ["macros"] }

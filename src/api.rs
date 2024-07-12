@@ -17,15 +17,18 @@ use axum_extra::extract::cookie::CookieJar;
 
 pub fn routes(database: Database) -> Router {
     Router::new()
-        // admin
+        // spirit (profiles)
         .route("/spirit/:username/grant", post(grant_skill_request))
         .route("/spirit/:username/revoke", post(revoke_skill_request))
         .route("/spirit/:username/seed", post(grant_title_request))
+        .route("/spirit/:username", get(spirit_inspect_request))
         // me
         .route("/me", get(my_stats_request))
-        // initial account
+        // account
         .route("/start", post(create_profile_request))
         .route("/return", post(login_request))
+        .route("/travel", post(callback_request))
+        .route("/done", get(logout_request))
         // ...
         .with_state(database)
 }
@@ -165,7 +168,49 @@ pub async fn my_stats_request(
     // return
     Json(DefaultReturn {
         success: true,
-        message: String::new(),
+        message: auth_user.username.to_string(),
+        payload: Some(manager.get_stats()),
+    })
+}
+
+/// [`SkillManager::get_stats`]
+pub async fn spirit_inspect_request(
+    Path(username): Path<String>,
+    State(database): State<Database>,
+) -> impl IntoResponse {
+    // get user
+    let auth_user = match database.get_profile_by_username(username).await {
+        Ok(ua) => ua,
+        Err(e) => {
+            return Json(DefaultReturn {
+                success: false,
+                message: e.to_string(),
+                payload: None,
+            });
+        }
+    };
+
+    // create manager
+    let manager = SkillManager(auth_user.skills);
+
+    // check vanish skill
+    if manager
+        .get_stats()
+        .abilities
+        .get(&SkillName::Vanish)
+        .is_some()
+    {
+        return Json(DefaultReturn {
+            success: false,
+            message: StrawError::NotAllowed.to_string(),
+            payload: None,
+        });
+    }
+
+    // return
+    Json(DefaultReturn {
+        success: true,
+        message: auth_user.username.to_string(),
         payload: Some(manager.get_stats()),
     })
 }

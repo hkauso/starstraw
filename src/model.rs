@@ -19,6 +19,10 @@ pub enum SkillType {
     ///
     /// Modification amount is initial modification amount * skill level * title skill level
     ModifierP,
+    /// Adds a static number to the `defense` level of a profile
+    AddD,
+    /// Adds a static number to the `power` level of a profile
+    AddP,
     /// An action that can be cast by a profile
     Ability,
     /// A profile role that multiplies (or divides) the level of **every** skill
@@ -42,6 +46,8 @@ pub enum SkillName {
     /// `Ability` type skill; the ability to do anything and everything; should be
     /// ignored if the user has a power level of less than 100,000
     Absolute,
+    /// `Ability` type skill; denies (public) spirit inspection access on user profile
+    Vanish,
     // titles
     /// `Title` type skill; multiplies all skill levels by 100,000; allows user to edit
     /// the skills of other users
@@ -66,6 +72,7 @@ impl Into<Skill> for SkillName {
             Protected => ((SkillType::ModifierD, self), 1.05),
             // abilities
             Absolute => ((SkillType::Ability, self), 1.0),
+            Vanish => ((SkillType::Ability, self), 1.0),
             // titles
             God => ((SkillType::Title, self), 100_000.0),
             Administrator => ((SkillType::Title, self), 10_000.0),
@@ -110,11 +117,31 @@ pub struct Profile {
     pub joined: u128,
 }
 
+impl Default for Profile {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            username: String::new(),
+            metadata: ProfileMetadata::default(),
+            skills: [SkillName::Normal.into()].to_vec(),
+            joined: dorsal::utility::unix_epoch_timestamp(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProfileMetadata {
     /// A secondary token that can be used to authenticate as the account
     #[serde(default)]
     pub secondary_token: String,
+}
+
+impl Default for ProfileMetadata {
+    fn default() -> Self {
+        Self {
+            secondary_token: String::new(),
+        }
+    }
 }
 
 // props
@@ -245,10 +272,11 @@ impl SkillManager {
         let mut abilities = HashMap::new();
 
         for skill in iter {
-            // we're only resolving things that modify our values here, so we'll just do what they say
             match skill.0 .0 {
                 SkillType::ModifierD => defense *= skill.1,
                 SkillType::ModifierP => power *= skill.1,
+                SkillType::AddD => defense += skill.1,
+                SkillType::AddP => power += skill.1,
                 SkillType::Ability => {
                     abilities.insert(skill.0 .1.clone(), skill.1);
                     ()
@@ -321,5 +349,10 @@ impl SkillManager {
         let me = self.get_stats();
         let them = other.get_stats();
         ((me.power > them.defense) && (them.power <= me.power)) | (me.title == SkillName::God)
+    }
+
+    /// Check if the [`SkillManager`] contains the requested [`SkillName`]
+    pub fn has_skill(&self, skill: SkillName) -> bool {
+        self.0.iter().find(|s| s.0 .1 == skill).is_some()
     }
 }
